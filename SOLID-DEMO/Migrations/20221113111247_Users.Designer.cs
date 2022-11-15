@@ -4,13 +4,13 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using SOLID_DEMO.Services.DataAccess;
+using Server.DataAccess;
 
 #nullable disable
 
 namespace SOLIDDEMO.Migrations
 {
-    [DbContext(typeof(UserContext))]
+    [DbContext(typeof(ShopContext))]
     [Migration("20221113111247_Users")]
     partial class Users
     {

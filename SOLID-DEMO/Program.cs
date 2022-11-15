@@ -1,7 +1,5 @@
-using System.Net.Mail;
 using Microsoft.EntityFrameworkCore;
-using SOLID_DEMO.Services.Before;
-using SOLID_DEMO.Services.DataAccess;
+using Server.DataAccess;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,14 +10,11 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<UserContext>(options =>
+builder.Services.AddDbContext<ShopContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("UsersDb");
     options.UseSqlServer(connectionString);
 });
-builder.Services.AddScoped<SmtpClient>();
-
-builder.Services.AddScoped<UserService>();
 
 var app = builder.Build();
 

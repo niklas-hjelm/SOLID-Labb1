@@ -4,7 +4,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>SOLID_DEMO</RootNamespace>
+    <RootNamespace>Server</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,8 +18,6 @@
 
   <ItemGroup>
     <Folder Include="Controllers\" />
-    <Folder Include="Services\Before\" />
-    <Folder Include="Services\DataAccess\" />
   </ItemGroup>
 
   <ItemGroup>
