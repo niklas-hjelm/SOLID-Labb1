@@ -24,7 +24,7 @@ namespace SOLIDDEMO.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("Shared.User", b =>
+            modelBuilder.Entity("Shared.Customer", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()

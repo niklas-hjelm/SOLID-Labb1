@@ -69,7 +69,7 @@ namespace SOLIDDEMO.Migrations
                     b.ToTable("Products");
                 });
 
-            modelBuilder.Entity("Shared.User", b =>
+            modelBuilder.Entity("Shared.Customer", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -92,13 +92,13 @@ namespace SOLIDDEMO.Migrations
 
             modelBuilder.Entity("Shared.Order", b =>
                 {
-                    b.HasOne("Shared.User", "User")
+                    b.HasOne("Shared.Customer", "Customer")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("Shared.Product", b =>

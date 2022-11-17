@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Collections.Immutable;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Shared;
 using System.ComponentModel.DataAnnotations;
@@ -7,80 +8,202 @@ using Server.DataAccess;
 namespace Server.Controllers;
 
 [ApiController]
-[Route("api")]
+[Route("/api")]
 public class MainController : ControllerBase
 {
-    public ShopContext _userContext;
+    public ShopContext _shopContext;
 
-    public MainController(ShopContext userContext)
+    public MainController(ShopContext shopContext)
     {
-        _userContext = userContext;
+        _shopContext = shopContext;
     }
 
-    [HttpGet("users")]
-    public async Task<IActionResult> GetUsers()
+    [HttpGet("/customers")]
+    public async Task<IActionResult> GetCustomers()
     {
-        return Ok(_userContext.Users.ToList());
+        return Ok(await _shopContext.Customers.ToListAsync());
     }
 
-    [HttpGet("users/{email}")]
-    public async Task<IActionResult> GetUsers(string email)
+    [HttpGet("/customers/{email}")]
+    public async Task<IActionResult> GetCustomer(string email)
     {
-        return Ok(_userContext.Users.FirstOrDefault(u=> u.Name.Equals(email)));
+        return Ok(await _shopContext.Customers.FirstOrDefaultAsync(c => c.Name.Equals(email)));
     }
 
-    [HttpPost("user/register")]
-    public async Task<IActionResult> RegisterUser(string email, string password)
+    [HttpPost("/customers/register")]
+    public async Task<IActionResult> RegisterUser(Customer customer)
     {
-        try
-        {
-            Register(email, password);
-            return Ok();
-        }
-        catch (ValidationException e)
-        {
-            throw e;
-        }
+        if (!customer.Name.Contains("@"))
+            throw new ValidationException("Email is not an email");
+        await _shopContext.AddAsync(customer);
+        await _shopContext.SaveChangesAsync();
+        return Ok();
     }
 
-    [HttpPost("user/login")]
-    public IActionResult LoginUser(string email, string password)
+    [HttpPost("/customers/login")]
+    public async Task<IActionResult> LoginCustomer(string email, string password)
     {
-        if (Login(email,password))
+        var customer = await _shopContext.Customers.FirstOrDefaultAsync(c => c.Name.Equals(email) && c.Password.Equals(password));
+        if (customer is not null)
         {
             return Ok();
         }
         return BadRequest();
     }
 
-    [HttpDelete("user/delete/{id}")]
-    public async Task<IActionResult> DeleteUser(int id)
+    [HttpDelete("/customers/delete/{id}")]
+    public async Task<IActionResult> DeleteCustomer(int id)
     {
-        var user = _userContext.Users.FirstOrDefault(u => u.Id == id);
-        if (user == null) return BadRequest();
+        var customer = await _shopContext.Customers.FirstOrDefaultAsync(c => c.Id == id);
+        if (customer is null) return BadRequest();
 
-        _userContext.Users.Remove(user);
-        await _userContext.SaveChangesAsync();
+        _shopContext.Customers.Remove(customer);
+        await _shopContext.SaveChangesAsync();
         return Ok();
     }
 
-    public bool Login(string email, string password)
+    [HttpGet("/products")]
+    public async Task<IActionResult> GetProducts()
     {
-        var user = _userContext.Users.FirstOrDefault(u => u.Name.Equals(email) && u.Password.Equals(password));
-        return user is not null;
+        return Ok(await _shopContext.Products.ToListAsync());
     }
 
-    public void Register(string email, string password)
+    [HttpGet("/products/{id}")]
+    public async Task<IActionResult> GetProduct(int id)
     {
-        if (!ValidateEmail(email))
-            throw new ValidationException("Email is not an email");
-        var user = new User(email, password);
-        _userContext.Add(user);
-        _userContext.SaveChanges();
+        return Ok(await _shopContext.Products.FirstOrDefaultAsync(c => c.Name.Equals(id)));
     }
 
-    public virtual bool ValidateEmail(string email)
+    [HttpPost("/products")]
+    public async Task<IActionResult> AddProduct(Product newProd)
     {
-        return email.Contains("@");
+        var prod = await _shopContext.Products.FirstOrDefaultAsync(p => p.Name.Equals(newProd.Name));
+        if (prod == null)
+        {
+            await _shopContext.Products.AddAsync(newProd);
+            await _shopContext.SaveChangesAsync();
+            return Ok();
+        }
+
+        return BadRequest();
+    }
+
+    [HttpGet("/orders")]
+    public async Task<IActionResult> GetAllOrders()
+    {
+        var orders = await _shopContext.Orders.Include(o=> o.Customer).Include(o=>o.Products).ToListAsync();
+        return Ok(orders);
+    }
+
+    [HttpGet("/orders/customer/{id}")]
+    public async Task<IActionResult> GetOrdersForCustomer(int id)
+    {
+        var orders = await _shopContext.Orders.Include(o=>o.Customer).Where(c=> c.Customer.Id == id).Include(o=>o.Products).ToListAsync();
+        if (orders.Count == 0)
+        {
+            return NotFound();
+        }
+        return Ok(orders);
+    }
+
+    [HttpPost("/orders")]
+    public async Task<IActionResult> PlaceOrder(CustomerCart cart)
+    {
+        var customer = await _shopContext.Customers.FirstOrDefaultAsync(c => c.Id.Equals(cart.CustomerId));
+        if (customer is null)
+        {
+            return BadRequest();
+        }
+
+        var products = new List<Product>();
+
+        foreach (var prodId in cart.ProductIds)
+        {
+            var prod = await _shopContext.Products.FirstOrDefaultAsync(p => p.Id == prodId);
+            if (prod is null)
+            {
+                return NotFound();
+            }
+            products.Add(prod);
+        }
+
+        var order = new Order() {Customer = customer, Products = products};
+        var now = DateTime.Now;
+        order.ShippingDate = now.AddDays(5);
+
+        await _shopContext.Orders.AddAsync(order);
+        await _shopContext.SaveChangesAsync();
+
+        return Ok();
+    }
+
+    [HttpDelete("/orders/{id}")]
+    public async Task<IActionResult> CancelOrder(int id)
+    {
+        var order = await _shopContext.Orders.FirstOrDefaultAsync(o => o.Id == id);
+        if (order is null)
+        {
+            return NotFound();
+        }
+
+        _shopContext.Orders.Remove(order);
+        await _shopContext.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpPatch("order/add/{id}")]
+    public async Task<IActionResult> AddToOrder(CustomerCart itemsToAdd, int id)
+    {
+        var customer = await _shopContext.Customers.FirstOrDefaultAsync(c => c.Id.Equals(itemsToAdd.CustomerId));
+        if (customer is null)
+        {
+            return BadRequest();
+        }
+
+        var products = new List<Product>();
+
+        foreach (var prodId in itemsToAdd.ProductIds)
+        {
+            var prod = await _shopContext.Products.FirstOrDefaultAsync(p => p.Id == prodId);
+            if (prod is null)
+            {
+                return NotFound();
+            }
+            products.Add(prod);
+        }
+
+        var order = await _shopContext.Orders.Include(o => o.Customer).Include(o => o.Products).FirstOrDefaultAsync(o => o.Id == id);
+        order.ShippingDate = DateTime.Now.AddDays(5);
+        order.Products.AddRange(products);
+        await _shopContext.SaveChangesAsync();
+
+        return Ok();
+    }
+
+    [HttpPatch("order/remove/{id}")]
+    public async Task<IActionResult> RemoveFromOrder(CustomerCart itemsToRemove, int id)
+    {
+        var customer = await _shopContext.Customers.FirstOrDefaultAsync(c => c.Id.Equals(itemsToRemove.CustomerId));
+        if (customer is null)
+        {
+            return BadRequest();
+        }
+
+        var order = await _shopContext.Orders.Include(o => o.Customer.Id == customer.Id).Include(o => o.Products).FirstOrDefaultAsync(o => o.Id == id);
+        order.ShippingDate = DateTime.Now.AddDays(5);
+
+        foreach (var prodId in itemsToRemove.ProductIds)
+        {
+            var prod =  order.Products.FirstOrDefault(p => p.Id == prodId);
+            if (prod is null)
+            {
+                continue;
+            }
+            order.Products.Remove(prod);
+        }
+
+        await _shopContext.SaveChangesAsync();
+
+        return Ok();
     }
 }
